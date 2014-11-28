@@ -35,7 +35,7 @@ output vga_h_sync, vga_v_sync, vga_r, vga_g, vga_b, vgaRed1, vgaRed2, vgaGreen1,
 
 //localparam
 
-wire ClkPort, reset, vga_clk, inDisplayArea;
+wire ClkPort, reset, vga_clk, state_clk, inDisplayArea;
 wire [9:0] CounterX;
 wire [9:0] CounterY;
 
@@ -48,9 +48,10 @@ reg [9:0] highScore;
 reg [9:0] playerLoc;
 reg hsFlag;
 reg collision;
+reg [9:0] playState;
 
 assign reset = btnC;
-assign startButton = btnU; //ASSIGNS THE START BUTTON TO THE UP BUTTON, HAVE TO CHANGE OTHER FILE
+assign startButton = btnU;
 assign leftButton  = btnL;
 assign rightButton = btnR;
 
@@ -62,6 +63,7 @@ always @ (posedge ClkPort, posedge reset)
 			div_clk <= div_clk + 1'b1;
 	end
 assign vga_clk = div_clk[1];
+assign state_clk = div_clk[20];
 
 hvsync_generator videoout(
 .clk(vga_clk), 
@@ -88,8 +90,12 @@ always @ (posedge vga_clk)
 //playerIcon is 10 px wide and is NOT centered around the playerLoc but instead that is the leftmost location
 wire playerIcon = (CounterY >= 460 && CounterY <= 470) && (CounterX >= playerLoc && CounterX <= (playerLoc + 10));
 
-wire white = playerIcon;
 
+
+//THIS IS PURELY TO TEST WHAT STATE WE ARE IN, DO NOT INCLUDE IN FINAL PROJECT
+wire playStateIcon = (CounterY >= 0 && CounterY <= playState) && (CounterX >= 0 && CounterX <= 10);
+
+wire white = playerIcon || playStateIcon;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -106,7 +112,7 @@ localparam
 		DEAD   = 3’b011, //dead state (possibly unneeded)
 		UNK    = 3’bXXX; //unclear state for everything else
 
-always @ (posedge vga_clk, posedge reset) begin: STATE_MACHINE
+always @ (posedge state_clk, posedge reset) begin: STATE_MACHINE
 
 	if (reset) begin
 		//CODE FOR RESETTING GOES HERE, CENTER THE PLAYER, CLEAR SCORE, ETC.
@@ -125,25 +131,41 @@ always @ (posedge vga_clk, posedge reset) begin: STATE_MACHINE
 				//rtl logic
 				playerScore <= 0;
 				playerLoc <= 315;
+				hsFlag <= 0;
 			end
 
 			PLAY: begin
 				//state transitions
-
-				
-				//rtl logic
-				if (rightButton) begin
-					playerLoc <= playerLoc + 5;
-				end
-				else if (leftButton) begin
-					playerLoc <= playerLoc - 5;
-				end
 				if (collision == 1 && hsFlag == 1) begin
 					state <= NEWHS;
 				end
 				else if (collision == 1 && hsFlag == 0) begin
 					state <= DEAD;
 				end
+				
+				//rtl logic
+
+				//increments the score
+				score <= score + 1;
+
+				//moves the player
+				if (rightButton && (playerLoc < 630)) begin
+					playerLoc <= playerLoc + 5;
+				end
+				else if (leftButton && (playerLoc > 0)) begin
+					playerLoc <= playerLoc - 5;
+				end
+				
+				//if the player has the new high score, sets the flag this is true
+				if (playerScore > highScore) begin
+					hsFlag <= 1;
+				end
+
+				
+
+
+				//THIS IS JUST TO TEST, ERASE FOR FINAL PROJECT
+				playState <= 10;
 			end
 
 			NEWHS: begin
@@ -165,6 +187,7 @@ always @ (posedge vga_clk, posedge reset) begin: STATE_MACHINE
 			end
 		endcase
 	end
-		
+	
+end	
 
 endmodule
